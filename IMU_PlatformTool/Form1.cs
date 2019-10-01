@@ -41,7 +41,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 */
 
-namespace ADIS16XXX_plot
+namespace IMU_PlatformTool
 {
     public partial class Form1 : Form
     {
@@ -50,15 +50,21 @@ namespace ADIS16XXX_plot
             InitializeComponent();
         }
 
-        int SAMPLING_CNT = 100;
-
-        PlotModel myPlotModel = new PlotModel(); //PlotModelの生成
+        //PlotModelの生成
+        PlotModel myPlotModel = new PlotModel(); 
         List<LineSeries> lines = new List<LineSeries>();
-        string csv_format = "";
-        const string FilePath = @"csv\";
 
         StreamWriter LogFile;
 
+        int SAMPLING_CNT = 100;
+        const string FilePath = @"csv\";
+        string csv_format = "";
+
+        /// <summary>
+        /// フォームが起動した時の処理
+        /// </summary>
+        /// <param name="sender"></param>
+        /// <param name="e"></param>
         private void Form1_Load(object sender, EventArgs e)
         {
             //UI操作無効化
@@ -73,9 +79,6 @@ namespace ADIS16XXX_plot
                 comGimPort.Items.Add(s);
             }
 
-            //最後のを選択する
-            //	comGimPort->SelectedIndex = comGimPort->Items->Count-1;
-
             //ターゲットデバイス名取得
             SerialPortList sp = new SerialPortList();
             String target_name = sp.GetComFromDevName("STMicro");
@@ -89,7 +92,11 @@ namespace ADIS16XXX_plot
                 }
             }
 
+            //選択したCOMポートの名前の表示
             ComPortNameLabel.Text = sp.GetDevNameFromCom((string)comGimPort.SelectedItem);
+
+            //プロットコントロールの初期化
+            SAMPLING_CNT = int.Parse("" + sampling_val.Value) - 1;
 
             myPlotModel.DefaultColors = new List<OxyColor>
             {
@@ -99,8 +106,6 @@ namespace ADIS16XXX_plot
                 OxyColor.FromRgb(0x20, 0x4A, 0x87)
             };
 
-            SAMPLING_CNT = int.Parse("" + sampling_val.Value) - 1;
-
             myPlotModel.Axes.Add(new LinearAxis { Position = AxisPosition.Bottom, Minimum = 0, Maximum = SAMPLING_CNT,MajorGridlineStyle = LineStyle.Solid, MinorGridlineStyle = LineStyle.Dot }); //x軸の設定 sampling_val
             myPlotModel.Axes.Add(new LinearAxis { Position = AxisPosition.Left, Minimum = -double.Parse("" + yAxe_val.Value), Maximum = double.Parse("" + yAxe_val.Value), MajorGridlineStyle = LineStyle.Solid, MinorGridlineStyle = LineStyle.Dot }); // y軸の設定
 
@@ -108,7 +113,35 @@ namespace ADIS16XXX_plot
 
         }
 
+        /// <summary>
+        /// フォームが閉じる時の処理
+        /// </summary>
+        /// <param name="sender"></param>
+        /// <param name="e"></param>
+        private void Form1_FormClosing(object sender, FormClosingEventArgs e)
+        {
+            try
+            {
+                // Logファイルを閉じる
+                if (LogFile != null)
+                {
+                    LogFile.Close();
+                    LogFile = null;
+                }
+                Send("stop\r\n");
+                serialPort1.Close();
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine(ex.Message);
+            }
+        }
 
+        /// <summary>
+        /// 接続ボタンのイベント
+        /// </summary>
+        /// <param name="sender"></param>
+        /// <param name="e"></param>
         private void btnConnect_Click(object sender, EventArgs e)
         {
             if (ComSearchFlg)
@@ -118,10 +151,12 @@ namespace ADIS16XXX_plot
                 return;
             }
 
+
             if (IsCpmmected ==false)
             {
                 Connect((string)comGimPort.SelectedItem, 9600);
 
+                //ボードのスタート処理
                 if (IsCpmmected)
                 {
                     for (int i = 0; i < lines.Count; i++)
@@ -129,12 +164,11 @@ namespace ADIS16XXX_plot
                         lines[i].Points.Clear();
                     }
 
-                    //Debug.WriteLine("接続成功");
-                    timSerial.Start();//通信状態自動監視開始
+                    timSerial.Start();
                     panel1.Enabled = true;
                     btnConnect.Text = Resources.Disconnecting_Str;
                     ViewUpdateTimer.Start();
-                    fps_counter.Start();
+                    recv_counter.Start();
 
                     Send("\r\n");
                     Send("stop\r\n");
@@ -156,6 +190,11 @@ namespace ADIS16XXX_plot
             }
         }
 
+        /// <summary>
+        /// COMの接続
+        /// </summary>
+        /// <param name="comname">COMの番号</param>
+        /// <param name="baud">ボーレート</param>
         void Connect(string comname, int baud)
         {
             if (comname == null)
@@ -181,17 +220,23 @@ namespace ADIS16XXX_plot
             }
         }
 
+        /// <summary>
+        /// COMの切断
+        /// </summary>
         void Disconnect()
         {
+            // 処理の停止
             timSerial.Stop();
             panel1.Enabled = false;
             btnConnect.Text = Resources.Connecting_Str;
             StatusLabel.Text = Resources.Disconnected_Str;
-            Send("stop\r\n");
-            fps_counter.Stop();
-            serial_count = 0;
-            //ViewUpdateTimer.Stop();
+            recv_counter.Stop();
+            recv_cnt = 0;
 
+            // データの出力を止める
+            Send("stop\r\n");
+
+            // COM切断
             try
             {
                 serialPort1.Close();
@@ -202,6 +247,9 @@ namespace ADIS16XXX_plot
             }
         }
 
+        /// <summary>
+        /// COMが接続されているかの判定
+        /// </summary>
         bool IsCpmmected
         {
             get
@@ -221,6 +269,7 @@ namespace ADIS16XXX_plot
             }
         }
 
+        //COMの送信関数
         public void Send(string msg)
         {
             if (!IsCpmmected) return;
@@ -229,12 +278,21 @@ namespace ADIS16XXX_plot
             serialPort1.Write(data, 0, data.Length);
         }
 
+        /// <summary>
+        /// 受信バッファ
+        /// </summary>
         List<string> RecvPacket = new List<string>();
 
+        /// <summary>
+        /// COMの受信割り込み
+        /// </summary>
+        /// <param name="sender"></param>
+        /// <param name="e"></param>
         private void serialPort1_DataReceived(object sender, System.IO.Ports.SerialDataReceivedEventArgs e)
         {
             try
             {
+                //データが有るか判定
                 if (serialPort1.BytesToRead == 0)
                 {
                     return;
@@ -247,6 +305,7 @@ namespace ADIS16XXX_plot
 
                 string text = serialPort1.ReadLine();
 
+                // 読み出せるだけ読み出す
                 do
                 {
                     RecvPacket.Add(text);
@@ -258,16 +317,23 @@ namespace ADIS16XXX_plot
             {
 
             }
-
         }
 
+        /// <summary>
+        /// COMが切断した後に再検索している時のフラグ
+        /// </summary>
         bool ComSearchFlg = false;
+
+        /// <summary>
+        /// COMが切断から復帰した時のフラグ
+        /// </summary>
         bool ComRecoveryFlg = false;
 
         private void timSerial_Tick(object sender, EventArgs e)
         {
             if (serialPort1.IsOpen)
             {
+                // COMが切断から復帰した時に再スタートする
                 if (ComRecoveryFlg)
                 {
                     ComRecoveryFlg = false;
@@ -277,12 +343,11 @@ namespace ADIS16XXX_plot
                         lines[i].Points.Clear();
                     }
 
-                    //Debug.WriteLine("接続成功");
-                    timSerial.Start();//通信状態自動監視開始
+                    timSerial.Start();
                     panel1.Enabled = true;
                     btnConnect.Text = Resources.Disconnecting_Str;
                     ViewUpdateTimer.Start();
-                    fps_counter.Start();
+                    recv_counter.Start();
 
                     Send("\r\n");
                     Send("stop\r\n");
@@ -296,13 +361,15 @@ namespace ADIS16XXX_plot
             }
             else
             {
+                // COMが切断した時に接続を試みる
                 ComSearchFlg = true;
                 StatusLabel.Text = Resources.ComSearch_Str;
                 StatusUpdateTimer.Stop();
                 StartBtn.Enabled = false;
                 StopBtn.Enabled = false;
                 Connect((String)comGimPort.SelectedItem, 115200);
-                //Connect((String)comGimPort.SelectedItem, 19200);
+
+                // 接続できたら復帰フラグを立てる
                 if (IsCpmmected)
                 {
                     ComRecoveryFlg = true;
@@ -312,24 +379,98 @@ namespace ADIS16XXX_plot
             }
         }
 
-        private void Form1_FormClosing(object sender, FormClosingEventArgs e)
+        /// <summary>
+        /// COM一覧のドロップダウンを開いた時にCOMポートを再検索するイベント
+        /// </summary>
+        /// <param name="sender"></param>
+        /// <param name="e"></param>
+        private void comGimPort_DropDown(object sender, EventArgs e)
         {
-            try
+            comGimPort.Items.Clear();
+
+            // すべてのシリアル・ポート名を取得する
+            String[] ports = System.IO.Ports.SerialPort.GetPortNames();
+            // 取得したシリアル・ポート名を出力する
+            foreach (String s in ports)
             {
-                if (LogFile != null)
-                {
-                    LogFile.Close();
-                    LogFile = null;
-                }
-                Send("stop\r\n");
-                serialPort1.Close();
+                comGimPort.Items.Add(s);
             }
-            catch (Exception ex)
+
+            //最後のを選択する
+            //	comGimPort->SelectedIndex = comGimPort->Items->Count-1;
+
+            //ターゲットデバイス名取得
+            SerialPortList sp = new SerialPortList();
+            String target_name = sp.GetComFromDevName("STMicro");
+            //該当を選択
+            foreach (String s in ports)
             {
-                Debug.WriteLine(ex.Message);
+                if (s == target_name)
+                {
+                    comGimPort.SelectedItem = s;
+                    break;
+                }
+            }
+
+            //該当するCOMポートの名前を表示する
+            ComPortNameLabel.Text = sp.GetDevNameFromCom((string)comGimPort.SelectedItem);
+        }
+
+        /// <summary>
+        /// データを受信した回数を記録
+        /// </summary>
+        int recv_cnt = 0;
+
+        /// <summary>
+        /// 1秒ごとに受信回数を更新するイベント
+        /// </summary>
+        /// <param name="sender"></param>
+        /// <param name="e"></param>
+        private void recv_counter_Tick(object sender, EventArgs e)
+        {
+            fps_label.Text = recv_cnt + "";
+            recv_cnt = 0;
+        }
+
+        /// <summary>
+        /// 受信した文字を評価するタスク
+        /// </summary>
+        /// <param name="sender"></param>
+        /// <param name="e"></param>
+        private void ViewUpdateTimer_Tick(object sender, EventArgs e)
+        {
+            while (RecvPacket.Count != 0)
+            {
+                try
+                {
+                    //1行づつ評価していく
+                    string text = RecvPacket[0];
+                    RecvPacket.RemoveAt(0);
+
+                    text_parser(text);
+                }
+                catch (Exception e2)
+                {
+
+                }
             }
         }
 
+        /// <summary>
+        /// 1秒ごとにIMUモジュールの状態を取得するイベント
+        /// </summary>
+        /// <param name="sender"></param>
+        /// <param name="e"></param>
+        private void StatusUpdateTimer_Tick(object sender, EventArgs e)
+        {
+            Send("GET_STATUS\r\n");
+        }
+
+        /// <summary>
+        /// Y軸の範囲が変更された時のイベント
+        /// </summary>
+        /// <param name="sender"></param>
+        /// <param name="e"></param>
         private void max_val_ValueChanged(object sender, EventArgs e)
         {
             myPlotModel.Axes[1].Minimum = -double.Parse("" + yAxe_val.Value);
@@ -337,6 +478,11 @@ namespace ADIS16XXX_plot
             myPlotModel.InvalidatePlot(true); // -- (3) , ここで軸設定が反映され、PlotViewが更新される
         }
 
+        /// <summary>
+        /// X軸の範囲が変更された時のイベント
+        /// </summary>
+        /// <param name="sender"></param>
+        /// <param name="e"></param>
         private void sampling_val_ValueChanged(object sender, EventArgs e)
         {
             for (int i = 0; i < lines.Count; i++)
@@ -350,70 +496,53 @@ namespace ADIS16XXX_plot
             myPlotModel.InvalidatePlot(true); // -- (3) , ここで軸設定が反映され、PlotViewが更新される
         }
 
-        private void button1_Click(object sender, EventArgs e)
+        /// <summary>
+        /// バイアス補正の更新ボタン
+        /// </summary>
+        /// <param name="sender"></param>
+        /// <param name="e"></param>
+        private void BiasUpdateBtn_Click(object sender, EventArgs e)
         {
             Send("START_BIAS_CORRECTION\r\n");
         }
 
-        private void button2_Click(object sender, EventArgs e)
-        {
-            this.dataGridView1.Rows.Clear();
-            Send("PAGE_DUMP,0\r\n");
-        }
-
-        private void button3_Click(object sender, EventArgs e)
-        {
-            this.dataGridView1.Rows.Clear();
-            Send("PAGE_DUMP,1\r\n");
-        }
-
-        private void button4_Click(object sender, EventArgs e)
-        {
-            this.dataGridView1.Rows.Clear();
-            Send("PAGE_DUMP,2\r\n");
-        }
-
-        private void button5_Click(object sender, EventArgs e)
-        {
-            this.dataGridView1.Rows.Clear();
-            Send("PAGE_DUMP,3\r\n");
-        }
-
-        private void button6_Click(object sender, EventArgs e)
-        {
-            Send("WRITE_REG,0x03,0x0E,0x3F0A\r\n");
-        }
-
-        private void button7_Click(object sender, EventArgs e)
-        {
-            Send("WRITE_REG,0x03,0x0E,0x070A\r\n");
-        }
-
-        private void button8_Click(object sender, EventArgs e)
+        /// <summary>
+        /// 温度取得ボタン
+        /// </summary>
+        /// <param name="sender"></param>
+        /// <param name="e"></param>
+        private void GetTempBtn_Click(object sender, EventArgs e)
         {
             Send("READ_TEMP\r\n");
         }
 
-        int serial_count = 0;
-
-        private void fps_counter_Tick(object sender, EventArgs e)
-        {
-            fps_label.Text = serial_count + "";
-            serial_count = 0;
-        }
-
-        private void button9_Click(object sender, EventArgs e)
+        /// <summary>
+        /// KpKiの取得ボタン
+        /// </summary>
+        /// <param name="sender"></param>
+        /// <param name="e"></param>
+        private void KpKiBtn_Click(object sender, EventArgs e)
         {
             string buf = "SET_KP_KI," + Kp_val.Value + "," + Ki_val.Value + "\r\n";
             Send(buf);
         }
 
-        private void button10_Click(object sender, EventArgs e)
+        /// <summary>
+        /// 姿勢角のリセットボタン
+        /// </summary>
+        /// <param name="sender"></param>
+        /// <param name="e"></param>
+        private void PoseResetBtn_Click(object sender, EventArgs e)
         {
             string buf = "RESET_FILTER\r\n" ;
             Send(buf);
         }
 
+        /// <summary>
+        /// ファイルの作成関数
+        /// </summary>
+        /// <param name="path">作成するファイルのパス</param>
+        /// <returns></returns>
         public static DirectoryInfo SafeCreateDirectory(string path)
         {
             if (Directory.Exists(path))
@@ -423,6 +552,11 @@ namespace ADIS16XXX_plot
             return Directory.CreateDirectory(path);
         }
 
+        /// <summary>
+        /// スタートボタン
+        /// </summary>
+        /// <param name="sender"></param>
+        /// <param name="e"></param>
         private void StartBtn_Click(object sender, EventArgs e)
         {
             lines.Clear();
@@ -458,6 +592,11 @@ namespace ADIS16XXX_plot
             }
         }
 
+        /// <summary>
+        /// ストップボタン
+        /// </summary>
+        /// <param name="sender"></param>
+        /// <param name="e"></param>
         private void StopBtn_Click(object sender, EventArgs e)
         {
             if (LogFile != null)
@@ -469,9 +608,20 @@ namespace ADIS16XXX_plot
             Send("GET_STATUS\r\n");
         }
 
+        /// <summary>
+        /// ジャイロの感度
+        /// </summary>
         double Gyro_Sensi = 0;
+
+        /// <summary>
+        /// 加速度の感度
+        /// </summary>
         double Acc_Sensi = 0;
 
+        /// <summary>
+        /// 受信文字の解読
+        /// </summary>
+        /// <param name="text"></param>
         private void text_parser(string text)
         {
             try
@@ -614,7 +764,7 @@ namespace ADIS16XXX_plot
                     else
                     {
 
-                        serial_count++;
+                        recv_cnt++;
 
                         int dat_len = SAMPLING_CNT;//サンプル数(X軸)
 
@@ -697,30 +847,22 @@ namespace ADIS16XXX_plot
             }
         }
 
-        private void ViewUpdateTimer_Tick(object sender, EventArgs e)
-        {
-            while (RecvPacket.Count != 0)
-            {
-                try
-                {
-                    string text = RecvPacket[0];
-                    RecvPacket.RemoveAt(0);
-
-                    text_parser(text);
-                }
-                catch (Exception e2)
-                {
-
-                }
-            }
-        }
-
-        private void button13_Click(object sender, EventArgs e)
+        /// <summary>
+        /// 送信周期の設定ボタン
+        /// </summary>
+        /// <param name="sender"></param>
+        /// <param name="e"></param>
+        private void SendCycleBtn_Click(object sender, EventArgs e)
         {
             Send("SET_SEND_CYCLE,"+(int)SendCycleNum.Value+ "\r\n");
         }
 
-        private void button15_Click(object sender, EventArgs e)
+        /// <summary>
+        /// パラメータの保存ボタン
+        /// </summary>
+        /// <param name="sender"></param>
+        /// <param name="e"></param>
+        private void SaveBtn_Click(object sender, EventArgs e)
         {
             DialogResult result = MessageBox.Show(Resources.Setting_Que_Str,
                 Resources.Question_Str,
@@ -741,69 +883,58 @@ namespace ADIS16XXX_plot
             Send("SAVE_PARAM\r\n");
         }
 
-        private void button14_Click(object sender, EventArgs e)
+        /// <summary>
+        /// パラメータの初期化ボタン
+        /// </summary>
+        /// <param name="sender"></param>
+        /// <param name="e"></param>
+        private void InitBtn_Click(object sender, EventArgs e)
         {
             Send("LOAD_INIT\r\n");
             Send("DUMP_PARAM\r\n");
         }
 
-        private void button16_Click(object sender, EventArgs e)
+        /// <summary>
+        /// パラメータの読み込みボタン
+        /// </summary>
+        /// <param name="sender"></param>
+        /// <param name="e"></param>
+        private void loadBtn_Click(object sender, EventArgs e)
         {
             Send("DUMP_PARAM\r\n");
         }
 
-        private void button18_Click(object sender, EventArgs e)
+        /// <summary>
+        /// IMUモジュールの情報取得のボタン
+        /// </summary>
+        /// <param name="sender"></param>
+        /// <param name="e"></param>
+        private void GetBoardInfoBtn_Click(object sender, EventArgs e)
         {
             Send("GET_PROD_ID\r\n");
             Send("GET_BOARD_NAME\r\n");
             Send("GET_VERSION\r\n");
         }
 
+        /// <summary>
+        /// CSVの保存場所の表示ボタン
+        /// </summary>
+        /// <param name="sender"></param>
+        /// <param name="e"></param>
         private void OpenCsvBtn_Click(object sender, EventArgs e)
         {
             string c_path = System.AppDomain.CurrentDomain.BaseDirectory + FilePath;
             System.Diagnostics.Process.Start("explorer.exe", c_path);
         }
 
-        private void StatusUpdateTimer_Tick(object sender, EventArgs e)
-        {
-            Send("GET_STATUS\r\n");
-        }
-
+        /// <summary>
+        /// 起動時のバイアス補正の更新時間の設定ボタン
+        /// </summary>
+        /// <param name="sender"></param>
+        /// <param name="e"></param>
         private void SetStartupTimeBtn_Click(object sender, EventArgs e)
         {
             Send("SET_STARTUP_TIME,"+ (int)StartupTimeNum.Value + "\r\n");
-        }
-
-        private void comGimPort_DropDown(object sender, EventArgs e)
-        {
-            comGimPort.Items.Clear();
-
-            // すべてのシリアル・ポート名を取得する
-            String[] ports = System.IO.Ports.SerialPort.GetPortNames();
-            // 取得したシリアル・ポート名を出力する
-            foreach (String s in ports)
-            {
-                comGimPort.Items.Add(s);
-            }
-
-            //最後のを選択する
-            //	comGimPort->SelectedIndex = comGimPort->Items->Count-1;
-
-            //ターゲットデバイス名取得
-            SerialPortList sp = new SerialPortList();
-            String target_name = sp.GetComFromDevName("STMicro");
-            //該当を選択
-            foreach (String s in ports)
-            {
-                if (s == target_name)
-                {
-                    comGimPort.SelectedItem = s;
-                    break;
-                }
-            }
-
-            ComPortNameLabel.Text = sp.GetDevNameFromCom((string)comGimPort.SelectedItem);
         }
     }
 }

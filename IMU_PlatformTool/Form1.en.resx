@@ -123,25 +123,25 @@
   <data name="btnConnect.Text" xml:space="preserve">
     <value>Connecting</value>
   </data>
-  <data name="button1.Text" xml:space="preserve">
+  <data name="BiasUpdateBtn.Text" xml:space="preserve">
     <value>Bias update</value>
   </data>
-  <data name="button10.Text" xml:space="preserve">
+  <data name="PoseResetBtn.Text" xml:space="preserve">
     <value>Reset Pose angle</value>
   </data>
-  <data name="button13.Text" xml:space="preserve">
+  <data name="SendCycleBtn.Text" xml:space="preserve">
     <value>Send cycle setting</value>
   </data>
-  <data name="button14.Text" xml:space="preserve">
+  <data name="InitBtn.Text" xml:space="preserve">
     <value>Setting initialize</value>
   </data>
-  <data name="button15.Text" xml:space="preserve">
+  <data name="SaveBtn.Text" xml:space="preserve">
     <value>Save settings</value>
   </data>
-  <data name="button16.Text" xml:space="preserve">
+  <data name="loadBtn.Text" xml:space="preserve">
     <value>Load settings</value>
   </data>
-  <data name="button18.Text" xml:space="preserve">
+  <data name="GetBoardInfoBtn.Text" xml:space="preserve">
     <value>Get board info</value>
   </data>
   <data name="button2.Text" xml:space="preserve">
@@ -162,10 +162,10 @@
   <data name="button7.Text" xml:space="preserve">
     <value>bias ACCL OFF</value>
   </data>
-  <data name="button8.Text" xml:space="preserve">
-    <value>Get Temprate</value>
+  <data name="GetTempBtn.Text" xml:space="preserve">
+    <value>Get temperature</value>
   </data>
-  <data name="button9.Text" xml:space="preserve">
+  <data name="KpKiBtn.Text" xml:space="preserve">
     <value>Kp_Ki Setting</value>
   </data>
   <data name="Colum2.HeaderText" xml:space="preserve">

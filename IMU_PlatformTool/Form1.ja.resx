@@ -123,25 +123,25 @@
   <data name="btnConnect.Text" xml:space="preserve">
     <value>接続</value>
   </data>
-  <data name="button1.Text" xml:space="preserve">
+  <data name="BiasUpdateBtn.Text" xml:space="preserve">
     <value>バイアス更新</value>
   </data>
-  <data name="button10.Text" xml:space="preserve">
+  <data name="PoseResetBtn.Text" xml:space="preserve">
     <value>姿勢角のリセット</value>
   </data>
-  <data name="button13.Text" xml:space="preserve">
+  <data name="SendCycleBtn.Text" xml:space="preserve">
     <value>送信周期設定</value>
   </data>
-  <data name="button14.Text" xml:space="preserve">
+  <data name="InitBtn.Text" xml:space="preserve">
     <value>設定初期化</value>
   </data>
-  <data name="button15.Text" xml:space="preserve">
+  <data name="SaveBtn.Text" xml:space="preserve">
     <value>設定保存</value>
   </data>
-  <data name="button16.Text" xml:space="preserve">
+  <data name="loadBtn.Text" xml:space="preserve">
     <value>設定読み込み</value>
   </data>
-  <data name="button18.Text" xml:space="preserve">
+  <data name="GetBoardInfoBtn.Text" xml:space="preserve">
     <value>基板情報取得</value>
   </data>
   <data name="button2.Text" xml:space="preserve">
@@ -162,10 +162,10 @@
   <data name="button7.Text" xml:space="preserve">
     <value>bias 加速度OFF</value>
   </data>
-  <data name="button8.Text" xml:space="preserve">
+  <data name="GetTempBtn.Text" xml:space="preserve">
     <value>温度取得</value>
   </data>
-  <data name="button9.Text" xml:space="preserve">
+  <data name="KpKiBtn.Text" xml:space="preserve">
     <value>Kp_Ki設定</value>
   </data>
   <data name="Colum2.HeaderText" xml:space="preserve">

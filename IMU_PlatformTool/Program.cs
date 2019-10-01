@@ -5,7 +5,7 @@ using System.Linq;
 using System.Threading.Tasks;
 using System.Windows.Forms;
 
-namespace ADIS16XXX_plot
+namespace IMU_PlatformTool
 {
     static class Program
     {
